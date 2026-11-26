@@ -6,7 +6,7 @@ A log of addons and scripts I made for my system. and avoid writing configs as m
 ### working
 - [ ] setup mpv
   - [x] install
-- [ ] Fuzzel-based Note Search
+- [x] Fuzzel-based Note Search
   - [ ] get rid of all the sed
   - [x] Quick buffer capture
     - [x] Timestamped buffer entries
