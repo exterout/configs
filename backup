@@ -1,0 +1,145 @@
+#!/bin/bash
+
+FOLDER="$HOME/notes"
+BUFFER_FOLDER="$FOLDER/buffer"
+
+# ---- sanity check ----
+if [ ! -d "$FOLDER" ]; then
+    echo "Error: $FOLDER does not exist."
+    exit 1
+fi
+
+# create buffer folder if it doesn't exist
+mkdir -p "$BUFFER_FOLDER"
+
+cd "$FOLDER" || exit 1
+
+# ---- new note creation ----
+newnote() {
+    local dir name file date_suffix
+
+# allowed folders
+allowed=("buffer" "projects" "areas" "resources" "archive" ".")
+
+# select folder (default buffer, PARA folders only)
+dir=$(
+    printf "buffer\nprojects\nareas\nresources\narchive\n" |
+    fuzzel --log-level=error --dmenu --lines 10 --width 60 \
+        --prompt "Where does this belong? (default: buffer, type . for root)"
+)
+
+# exit if Esc pressed
+[ -z "$dir" ] && exit 0
+
+# default to buffer if input is empty string
+[ "$dir" = "" ] && dir="buffer"
+
+# check if dir is in allowed folders; if not, just call fuzzel --log-level=error and exit
+if [[ ! " ${allowed[@]} " =~ " ${dir} " ]]; then
+    # optional: give a quick prompt to let user know they typed something invalid
+    fuzzel --log-level=error --dmenu --lines 1 --width 60 --prompt "Invalid folder. Press Return to exit." >/dev/null
+    exit 0
+fi
+
+# make sure directory exists
+mkdir -p "$dir"
+
+
+    # select note name
+    name=$(
+        fuzzel --log-level=error --dmenu --lines 10 --width 60 \
+            --prompt "Note name (empty = today)"
+    ) || exit 0
+
+    [ -z "$name" ] && name="$(date +%Y-%m-%d)"
+
+    # append date if creating note in buffer folder
+    if [[ "$dir" == "buffer" && "$name" != "$(date +%Y-%m-%d)" ]]; then
+        date_suffix=$(date +%Y-%m-%d)
+        name="${name}_${date_suffix}"
+    fi
+    file="$dir/$name.md"
+    mkdir -p "$dir"
+    touch "$file"
+
+    zed -n "$file"
+}
+
+function date_buffer {
+# input task
+    local task=$(
+        fuzzel --log-level=error --dmenu -l 0 --width 80 \
+            --prompt "add quick task/note in a with date file "
+    ) || exit 0
+
+    [ -z $task ] && exit 0
+    local file_name="$(date +%Y-%m-%d).md"
+
+    touch "$BUFFER_FOLDER/$file_name"
+    local check=$(cat "$BUFFER_FOLDER/$file_name")
+    [ -z "$check" ] && echo "====" > "$BUFFER_FOLDER/$file_name"
+
+
+    sed -i "1i - [ ] $task" "$BUFFER_FOLDER/$file_name"
+    notify-send "Added to todays notes" "$(echo "$task" | cut -c1-40)…" 2>/dev/null
+
+# add functionality to add stuff to future dates, say sarting something with +3 will day to 3 days later's date buffer note.
+
+
+}
+
+# ---- main note/task selector ----
+selected() {
+    local SELECTION DATE
+
+    SELECTION=$(
+        printf "[New Note]\n%s\n" \
+        "$(find . -name '*.md' -printf '%T@ %P\n' \
+            | sort -nr \
+            | cut -d' ' -f2-)" |
+        fuzzel --log-level=error -d --width 80 --lines 10 \
+            -p "Select note or type task:"
+    ) || exit 0
+
+    case "$SELECTION" in
+        "[New Note]")
+            newnote
+            ;;
+        *.md)
+            zed -n "$SELECTION"
+            ;;
+        "")
+            exit 0
+            ;;
+        *)
+            local today=$(echo "$SELECTION" | cut -c1)
+            if [ $today == "'" ]; then
+            # prepend timestamp to buffer.md entry
+            local DATE=$(date +%Y-%m-%d)
+            touch "$BUFFER_FOLDER/buffer.md"
+            sed -i "1i - [ ] $SELECTION_$DATE" "$BUFFER_FOLDER/buffer.md"
+            notify-send "Added to buffer" "$(echo "$SELECTION" | cut -c1-40)…" 2>/dev/null
+            exit 0;
+            else
+            local task=$(
+                fuzzel --log-level=error --dmenu -l 0 --width 80 \
+                    --prompt "add quick task/note in a with date file "
+                    ) || exit 0
+
+                    [ -z $task ] && exit 0
+                    local file_name="$(date +%Y-%m-%d).md"
+
+                    touch "$BUFFER_FOLDER/$file_name"
+                    local check=$(cat "$BUFFER_FOLDER/$file_name")
+                    [ -z "$check" ] && echo "====" > "$BUFFER_FOLDER/$file_name"
+
+
+                    sed -i "1i - [ ] $task" "$BUFFER_FOLDER/$file_name"
+                    notify-send "Added to todays notes" "$(echo "$task" | cut -c1-40)…" 2>/dev/null; fi
+
+            ;;
+    esac
+}
+
+# ---- run ----
+selected
